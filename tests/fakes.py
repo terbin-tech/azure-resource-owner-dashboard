@@ -13,13 +13,22 @@ from http import HTTPStatus
 from typing import Any
 
 from azure.core.credentials import AccessToken
-from azure.core.exceptions import HttpResponseError
+from azure.core.exceptions import (
+    ClientAuthenticationError,
+    HttpResponseError,
+    ResourceExistsError,
+    ResourceNotFoundError,
+    ResourceNotModifiedError,
+    map_error,
+)
 from azure.core.pipeline.transport import HttpTransport
+from azure.core.utils import CaseInsensitiveDict
 from azure.mgmt.core.exceptions import ARMErrorFormat
 from azure.mgmt.monitor.models import EventData
 from azure.mgmt.resource.resources.models import GenericResourceExpanded
 from azure.mgmt.resource.subscriptions.models import Subscription as SdkSubscription
 from azure.mgmt.resourcegraph.models import QueryRequest, QueryResponse
+from azure.storage.blob._shared.response_handlers import process_storage_error
 
 from tests.helpers import T0
 
@@ -76,6 +85,44 @@ def http_error(code: str | None, status: int = 403, message: str = "x") -> HttpR
     """An HttpResponseError parsed by azure-core from an ARM error body, as the SDK raises it."""
     body = "not json" if code is None else json.dumps({"error": {"code": code, "message": message}})
     return HttpResponseError(response=_FakeResponse(status, body), error_format=ARMErrorFormat)
+
+
+class _FakeXmlResponse(_FakeResponse):
+    def __init__(self, status: int, code: str) -> None:
+        body = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            f"<Error><Code>{code}</Code><Message>x</Message></Error>"
+        )
+        super().__init__(status, body)
+        self.content_type = "application/xml"
+        self.headers = CaseInsensitiveDict(
+            {"x-ms-error-code": code, "Content-Type": self.content_type}
+        )
+
+
+def storage_error(code: str, status: int) -> HttpResponseError:
+    """A storage error with the shape azure-storage-blob raises it.
+
+    As the generated operations do: map_error with their error map, else a plain
+    HttpResponseError, then process_storage_error (_shared/response_handlers.py), which raises
+    ResourceNotFoundError for a 404 and sets error_code.
+    """
+    response = _FakeXmlResponse(status, code)
+    error_map = {
+        401: ClientAuthenticationError,
+        404: ResourceNotFoundError,
+        409: ResourceExistsError,
+        304: ResourceNotModifiedError,
+    }
+    try:
+        try:
+            map_error(status_code=status, response=response, error_map=error_map)
+            raise HttpResponseError(response=response)
+        except HttpResponseError as error:
+            process_storage_error(error)
+    except HttpResponseError as processed:
+        return processed
+    raise AssertionError("process_storage_error did not raise")
 
 
 def lazy(items: Iterable, error: Exception | None = None, after: int = 0) -> Iterator:

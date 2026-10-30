@@ -8,7 +8,31 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SRC = REPO / "src" / "dashboard"
-WRITE_PREFIXES = ("begin_", "create", "update", "delete", "put")
+WRITE_PREFIXES = (
+    "begin_",
+    "create",
+    "update",
+    "delete",
+    "put",
+    # The azure-storage-blob 12.31 BlobClient and ContainerClient writers, by method name: a bare
+    # "append" would flag every list.append. The lease client's renew, release and change exist
+    # only after acquire_lease, which "acquire" catches.
+    "upload",
+    "stage",
+    "commit",
+    "set_",
+    "start_copy",
+    "abort_copy",
+    "undelete",
+    "acquire",
+    "break_",
+    "append_block",
+    "clear_page",
+    "resize_blob",
+    "seal_append",
+)
+# The one write: the page writer's upload, held to one PUT by its guard in clients.py.
+ALLOWED_WRITES = {("src/dashboard/clients.py", "upload_blob")}
 NETWORK_MODULES = (
     "subprocess",
     "socket",
@@ -94,15 +118,26 @@ def _key(path: Path) -> str:
 
 
 def _is_client_module(module: str) -> bool:
-    """An azure.mgmt module other than a models module: where the client classes live."""
+    """An azure.mgmt or azure.storage module other than a models module: where clients live."""
     parts = module.split(".")
-    return parts[:2] == ["azure", "mgmt"] and "models" not in parts
+    return parts[:2] in (["azure", "mgmt"], ["azure", "storage"]) and "models" not in parts
 
 
 def test_the_checker_catches_a_planted_write():
-    assert write_calls("c.resource_groups.begin_delete('x')\nd.update(e)\n") == [
+    source = (
+        "c.resource_groups.begin_delete('x')\n"
+        "d.update(e)\n"
+        "b.upload_blob(x)\n"
+        "b.set_blob_metadata(m)\n"
+        "b.append_block(x)\n"
+        "items.append(x)\n"
+    )
+    assert write_calls(source) == [
         "begin_delete",
         "update",
+        "upload_blob",
+        "set_blob_metadata",
+        "append_block",
     ]
 
 
@@ -118,22 +153,36 @@ def test_the_import_walk_skips_type_checking_blocks():
 
 def test_no_write_calls_in_src():
     files = _src_files()
-    assert "clients.py" in [f.name for f in files]
-    for path in files:
-        assert write_calls(path.read_text(encoding="utf-8")) == [], path.name
+    assert "src/dashboard/clients.py" in [_key(f) for f in files]
+    found = {
+        (_key(path), call)
+        for path in files
+        for call in write_calls(path.read_text(encoding="utf-8"))
+    }
+    assert found - ALLOWED_WRITES == set()
+
+
+def test_the_one_write_is_the_page_upload():
+    source = (SRC / "clients.py").read_text(encoding="utf-8")
+    assert write_calls(source).count("upload_blob") == 1
 
 
 def test_only_clients_py_builds_azure_clients():
     # Request and model classes come from azure.mgmt.*.models anywhere; a client type used
     # only in annotations is imported under `if TYPE_CHECKING:`, which runtime_imports skips.
     found = {
-        path.relative_to(SRC).as_posix(): [
+        _key(path): [
             m for m in runtime_imports(path.read_text(encoding="utf-8")) if _is_client_module(m)
         ]
         for path in _src_files()
     }
-    assert found.pop("clients.py"), "the check no longer sees clients.py build the clients"
+    assert found.pop("src/dashboard/clients.py"), "the check no longer sees clients.py build them"
     assert {name: modules for name, modules in found.items() if modules} == {}
+
+
+def test_the_import_walk_sees_storage_clients():
+    source = "from azure.storage.blob import BlobClient\nfrom azure.storage.blob.models import X\n"
+    assert [m for m in runtime_imports(source) if _is_client_module(m)] == ["azure.storage.blob"]
 
 
 def test_the_network_check_catches_planted_imports():
