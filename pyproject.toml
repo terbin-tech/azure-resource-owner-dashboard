@@ -9,6 +9,14 @@ dynamic = ["version"]
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.14"
+dependencies = [
+    "azure-identity==1.27.0",
+    "azure-core==1.41.0",
+    "azure-mgmt-resourcegraph==8.0.1",
+    "azure-mgmt-resource==26.0.0",
+    "azure-mgmt-resource-subscriptions==1.0.0",
+    "azure-mgmt-monitor==7.0.0",
+]
 
 [project.optional-dependencies]
 dev = ["pytest==9.2.0", "ruff==0.17.3", "pre-commit==4.7.0"]
