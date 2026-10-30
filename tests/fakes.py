@@ -16,6 +16,7 @@ from azure.core.credentials import AccessToken
 from azure.core.exceptions import HttpResponseError
 from azure.core.pipeline.transport import HttpTransport
 from azure.mgmt.core.exceptions import ARMErrorFormat
+from azure.mgmt.monitor.models import EventData
 from azure.mgmt.resource.resources.models import GenericResourceExpanded
 from azure.mgmt.resource.subscriptions.models import Subscription as SdkSubscription
 from azure.mgmt.resourcegraph.models import QueryRequest, QueryResponse
@@ -165,6 +166,59 @@ class FakeGraph:
         if isinstance(response, Exception):
             raise response
         return response
+
+
+def event(
+    resource_id: str | None,
+    caller: str | None = "student-a@school.example",
+    *,
+    op: str | None = "Microsoft.Compute/virtualMachines/write",
+    status: str | None = "Succeeded",
+    sub_status: str | None = "Created",
+    status_code: str | None = None,
+    when: datetime | None = T0,
+) -> EventData:
+    """An Activity Log event as the SDK deserializes the REST JSON; a None leaves the field out.
+
+    `status_code` fills `properties.statusCode` only, as the schema's own sample does.
+    """
+
+    def localizable(value: str | None) -> dict[str, str] | None:
+        return None if value is None else {"value": value, "localizedValue": value}
+
+    body: dict[str, Any] = {
+        "caller": caller,
+        "resourceId": resource_id,
+        "operationName": localizable(op),
+        "status": localizable(status),
+        "subStatus": localizable(sub_status),
+        "properties": None if status_code is None else {"statusCode": status_code},
+        "eventTimestamp": None if when is None else when.isoformat(),
+    }
+    return EventData.deserialize(body)
+
+
+class FakeActivityLogs:
+    def __init__(self, events: list[EventData], error: Exception | None, after: int) -> None:
+        self._events = events
+        self._error = error
+        self._after = after
+        self.filters: list[str] = []
+        self.selects: list[str | None] = []
+
+    def list(self, filter: str, select: str | None = None) -> Iterator[EventData]:
+        self.filters.append(filter)
+        self.selects.append(select)
+        return lazy(self._events, self._error, self._after)
+
+
+class FakeMonitor:
+    """A MonitorManagementClient whose Activity Log list records its filter and select."""
+
+    def __init__(
+        self, events: list[EventData], error: Exception | None = None, after: int = 0
+    ) -> None:
+        self.activity_logs = FakeActivityLogs(events, error, after)
 
 
 class FakeClients:
