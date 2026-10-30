@@ -29,3 +29,11 @@ repos:
         entry: python scripts/check_denylist.py
         language: unsupported
         stages: [commit-msg]
+      # No official Bicep hook exists. The build applies infra/bicepconfig.json, where every linter
+      # warning is an error.
+      - id: bicep-build
+        name: bicep build
+        entry: bash -c 'bicep build infra/main.bicep --stdout > /dev/null'
+        language: unsupported
+        files: ^infra/
+        pass_filenames: false

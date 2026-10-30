@@ -24,7 +24,18 @@ jobs:
           python-version: "3.14"
       - name: Install
         run: python -m pip install -e '.[dev]'
+      - name: Bicep CLI 0.48.1, checked against the release's SHA-256
+        env:
+          BICEP_SHA256: b09ec25a9d376c1f8e33ede6ed22b587f915ad68488d5db77a6f9541748c7f6e
+        run: |
+          mkdir -p "$RUNNER_TEMP/bicep"
+          curl -fsSL -o "$RUNNER_TEMP/bicep/bicep" https://github.com/Azure/bicep/releases/download/v0.48.1/bicep-linux-x64
+          echo "$BICEP_SHA256  $RUNNER_TEMP/bicep/bicep" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/bicep/bicep"
+          echo "$RUNNER_TEMP/bicep" >> "$GITHUB_PATH"
       - name: pre-commit, manual stage (every hook but the local denylist ones, plus a gitleaks scan of the whole history)
         run: pre-commit run --all-files --show-diff-on-failure --hook-stage manual
       - name: pytest
+        env:
+          REQUIRE_BICEP: "1"
         run: pytest
