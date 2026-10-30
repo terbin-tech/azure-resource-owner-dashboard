@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from dashboard.events import Write
-from dashboard.model import Group, Resource
+from dashboard.events import LookupResult, Write
+from dashboard.inventory import Inventory
+from dashboard.model import Group, Resource, Subscription
+from dashboard.pipeline import ScanData
 
 SUB = "00000000-0000-0000-0000-000000000001"
 SUB2 = "00000000-0000-0000-0000-000000000002"
@@ -61,3 +63,40 @@ def write(
     """A succeeded write on `target` (a resource, or an ID that is casefolded) at base + minutes."""
     resource = target.key if isinstance(target, Resource) else target.casefold()
     return Write(resource, caller, created, base + timedelta(minutes=minutes))
+
+
+def make_scan(
+    resources=(),
+    writes=(),
+    groups=(),
+    *,
+    failed=False,
+    not_scanned=(),
+    incomplete=(),
+    graph_failed=False,
+    arm_failed=(),
+    now=NOW,
+) -> ScanData:
+    """One scanned subscription, SUB, with one Activity Log lookup over `writes`.
+
+    The lookup is the one for the default group, rg-a; `failed` fails it.
+    """
+    sub = Subscription(SUB, "Course subscription")
+    inventory = Inventory(
+        scanned=[sub],
+        not_scanned=list(not_scanned),
+        resources=list(resources),
+        groups={g.key: g for g in groups},
+        incomplete=list(incomplete),
+        graph_failed=graph_failed,
+        arm_failed=set(arm_failed),
+    )
+    error = "AuthorizationFailed" if failed else ""
+    lookup = LookupResult(sub, "rg-a", list(writes), error=error)
+    return ScanData(
+        generated_at=now,
+        inventory=inventory,
+        lookups=[lookup],
+        lookback_days=90,
+        dashboard_group="resource-owner-dashboard",
+    )
