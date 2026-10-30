@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 from datetime import UTC, datetime, timedelta
 
 from dashboard.attribution import Owner
@@ -142,3 +144,10 @@ def make_report(rows=(), cards=None, **overrides) -> Report:
         "incomplete_subscriptions": frozenset(),
     }
     return Report(**(fields | overrides))
+
+
+def principal(claims: list[tuple[str, str]]) -> dict[str, str]:
+    """The sign-in header App Service adds: the base64 of a JSON principal with these claims."""
+    body = {"auth_typ": "aad", "claims": [{"typ": typ, "val": val} for typ, val in claims]}
+    encoded = base64.b64encode(json.dumps(body).encode()).decode()
+    return {"X-MS-CLIENT-PRINCIPAL": encoded}

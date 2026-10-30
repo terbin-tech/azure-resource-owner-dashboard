@@ -268,20 +268,37 @@ class FakeMonitor:
         self.activity_logs = FakeActivityLogs(events, error, after)
 
 
+class FakeRoleAssignments:
+    """An AuthorizationManagementClient whose role assignment list records its filter."""
+
+    def __init__(self, items: list | None = None, error: Exception | None = None) -> None:
+        self.role_assignments = self
+        self._items = items or []
+        self._error = error
+        self.filters: list[str | None] = []
+
+    def list_for_subscription(self, filter: str | None = None) -> Iterator:
+        self.filters.append(filter)
+        return lazy(self._items, self._error)
+
+
 class FakeClients:
-    """The four Clients factories over fakes."""
+    """The Clients factories over fakes."""
 
     def __init__(
         self,
         subscriptions: FakeSubscriptionClient,
-        graph: FakeGraph,
-        resources: dict[str, FakeResourceClient],
+        graph: FakeGraph | None = None,
+        resources: dict[str, FakeResourceClient] | None = None,
         monitors: dict[str, Any] | None = None,
+        *,
+        authorizations: dict[str, FakeRoleAssignments] | None = None,
     ) -> None:
         self._subscriptions = subscriptions
         self._graph = graph
-        self._resources = resources
+        self._resources = resources or {}
         self._monitors = monitors or {}
+        self._authorizations = authorizations or {}
 
     def subscriptions(self) -> FakeSubscriptionClient:
         return self._subscriptions
@@ -294,3 +311,6 @@ class FakeClients:
 
     def monitor(self, subscription_id: str) -> Any:
         return self._monitors[subscription_id]
+
+    def authorization(self, subscription_id: str) -> FakeRoleAssignments:
+        return self._authorizations[subscription_id]
