@@ -1,0 +1,31 @@
+default_install_hook_types: [pre-commit, commit-msg]
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: 25bcf95026b96e2dd3c0aec3090c3d6ef6ca2e6c  # frozen: v0.17.3
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
+    hooks:
+      - id: gitleaks
+      # The hook above scans only staged changes, and CI has none, so CI runs this one on the whole history.
+      - id: gitleaks
+        name: gitleaks (whole git history; CI)
+        entry: gitleaks git --redact --verbose
+        stages: [manual]
+  - repo: local
+    hooks:
+      # Local only: .denylist is gitignored, so CI has none, and their stages keep them out of CI's manual run.
+      - id: check-denylist
+        name: private terms (.denylist)
+        entry: python scripts/check_denylist.py
+        language: unsupported
+        types: [text]
+        stages: [pre-commit]
+      - id: check-denylist-msg
+        name: private terms in the commit message (.denylist)
+        entry: python scripts/check_denylist.py
+        language: unsupported
+        stages: [commit-msg]

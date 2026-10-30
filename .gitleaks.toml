@@ -1,0 +1,25 @@
+title = "azure-resource-owner-dashboard"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "azure-guid"
+description = "A GUID: tenant, subscription, client or object ID (the repo is public)"
+regex = '''(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'''
+keywords = []
+
+[[rules.allowlists]]
+description = "Placeholder GUIDs used in tests and the demo"
+regexes = ['''^00000000-0000-0000-0000-0000000000[0-9]{2}$''']
+
+# The default gitleaks rules have no email rule, and the .denylist hooks run only locally.
+[[rules]]
+id = "email"
+description = "An email address: Activity Log callers are school sign-ins (the repo is public)"
+regex = '''(?i)[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b'''
+keywords = ["@"]
+
+[[rules.allowlists]]
+description = "Reserved example domains (RFC 2606)"
+regexes = ['''(?i)^[^@]+@([a-z0-9-]+\.)*example$''']
