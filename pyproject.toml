@@ -37,6 +37,7 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 100
+extend-exclude = ["docs"]  # ruff format also formats code blocks in Markdown; keep the docs as written
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "D205", "D209"]  # D: PEP 257 docstring layout
