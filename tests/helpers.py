@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from dashboard.attribution import Owner
 from dashboard.events import LookupResult, Write
 from dashboard.inventory import Inventory
 from dashboard.model import Group, Resource, Subscription
-from dashboard.pipeline import ScanData
+from dashboard.people import Person
+from dashboard.pipeline import Card, Report, Row, ScanData, group_owners
 
 SUB = "00000000-0000-0000-0000-000000000001"
 SUB2 = "00000000-0000-0000-0000-000000000002"
@@ -100,3 +102,43 @@ def make_scan(
         lookback_days=90,
         dashboard_group="resource-owner-dashboard",
     )
+
+
+def make_row(
+    resource,
+    user="student-a",
+    cohort="cohort-x",
+    age_days=1,
+    method="event",
+    detail="",
+    attached=False,
+    public_ip=False,
+) -> Row:
+    person = Person(user.casefold(), user, cohort) if user else None
+    return Row(resource, Owner(user or None, method, detail), person, age_days, attached, public_ip)
+
+
+def make_report(rows=(), cards=None, **overrides) -> Report:
+    rows = list(rows)
+    if cards is None:
+        cards = [Card(r.card, r.cohort, [r]) for r in rows if r.card]
+    fields = {
+        "generated_at": NOW,
+        "scanned": ["Course subscription"],
+        "not_scanned": [],
+        "rows": rows,
+        "cards": cards,
+        "unknown": [],
+        "orphaned": [],
+        "made_by_azure": [],
+        "dashboard": [],
+        "incomplete": [],
+        "unmapped_users": 0,
+        "roster_loaded": True,
+        "cohorts": sorted({c.cohort for c in cards if c.cohort}),
+        "groups": {},
+        "group_owners": group_owners(rows),
+        "node_groups": frozenset(),
+        "incomplete_subscriptions": frozenset(),
+    }
+    return Report(**(fields | overrides))

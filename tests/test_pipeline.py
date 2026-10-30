@@ -11,6 +11,7 @@ from dashboard.config import Config
 from dashboard.events import LookupResult, activity_filter, window_start
 from dashboard.inventory import GROUPS_QUERY, RESOURCES_QUERY
 from dashboard.model import AKS, DISK, NETWORK_WATCHER, NIC, PUBLIC_IP, VM, Incomplete, Subscription
+from dashboard.render import DELETE_GROUP_TEXT, SHARED_GROUP_TEXT, help_line
 from tests.fakes import (
     FakeClients,
     FakeCredential,
@@ -332,6 +333,29 @@ def test_only_a_live_clusters_node_group_is_a_node_group_beside_a_tagged_deleted
     data = make_scan(resources=[cluster, disk], writes=[write(disk, APP)], groups=[tagged])
     report = pipeline.build_report(data, roster=None)
     assert report.node_groups == frozenset({grp(NODE_GROUP).key})
+
+
+def test_help_line_for_a_group_whose_cluster_is_gone_follows_the_normal_rule():
+    gone = "MC_rg-a_aks-gone_eastus"
+    tagged = grp(gone, tags={"AKS-Managed-Cluster-Name": "aks-gone"})
+    disk = res(DISK, "pvc-1", gone)
+    theirs = res(NIC, "nic-1", gone)
+    made = write(tagged.id)  # student-a created the group, so rule 3 gives them the app's disk
+
+    def line(resources, writes, **scan):
+        data = make_scan(resources=resources, writes=[made, *writes], groups=[tagged], **scan)
+        report = pipeline.build_report(data, roster=None)
+        (card,) = (c for c in report.cards if c.name == "student-a")
+        assert disk in [r.resource for r in card.rows]
+        return help_line(card, tagged.key, report)
+
+    app_disk = write(disk, APP)
+    assert line([disk], [app_disk]) == DELETE_GROUP_TEXT
+    # A second resource that is another student's makes the group shared.
+    other = write(theirs, "student-b@school.example")
+    assert line([disk, theirs], [app_disk, other]) == SHARED_GROUP_TEXT
+    # So does a subscription whose inventory may be incomplete.
+    assert line([disk], [app_disk], arm_failed={SUB}) == SHARED_GROUP_TEXT
 
 
 def test_graph_failure_is_passed_to_attribution():
