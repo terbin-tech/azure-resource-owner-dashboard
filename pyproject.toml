@@ -43,4 +43,4 @@ select = ["E", "F", "I", "B", "UP", "S", "D205", "D209"]  # D: PEP 257 docstring
 ignore = ["E501"]  # line length is the formatter's job
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106"]
+"tests/*" = ["S101", "S105", "S106", "S603"]  # S603: the tests run fixed argument lists
