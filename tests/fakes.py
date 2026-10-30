@@ -7,12 +7,20 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable, Iterator
+from datetime import datetime
 from http import HTTPStatus
+from typing import Any
 
 from azure.core.credentials import AccessToken
 from azure.core.exceptions import HttpResponseError
 from azure.core.pipeline.transport import HttpTransport
 from azure.mgmt.core.exceptions import ARMErrorFormat
+from azure.mgmt.resource.resources.models import GenericResourceExpanded
+from azure.mgmt.resource.subscriptions.models import Subscription as SdkSubscription
+from azure.mgmt.resourcegraph.models import QueryRequest, QueryResponse
+
+from tests.helpers import T0
 
 
 class FakeCredential:
@@ -67,3 +75,121 @@ def http_error(code: str | None, status: int = 403, message: str = "x") -> HttpR
     """An HttpResponseError parsed by azure-core from an ARM error body, as the SDK raises it."""
     body = "not json" if code is None else json.dumps({"error": {"code": code, "message": message}})
     return HttpResponseError(response=_FakeResponse(status, body), error_format=ARMErrorFormat)
+
+
+def lazy(items: Iterable, error: Exception | None = None, after: int = 0) -> Iterator:
+    """Yields `after` items, then raises `error` if set, else the rest.
+
+    The SDK's list calls return a lazy ItemPaged, which raises only while it is iterated.
+    """
+    items = list(items)
+    yield from items[:after]
+    if error is not None:
+        raise error
+    yield from items[after:]
+
+
+def sdk_subscription(sub_id: str, name: str) -> SdkSubscription:
+    """A subscription as the SDK deserializes the REST JSON of the subscription list."""
+    return SdkSubscription({"subscriptionId": sub_id, "displayName": name})
+
+
+def arm_row(
+    resource_id: str,
+    *,
+    created: datetime | None = T0,
+    managed_by: str | None = None,
+    tags: dict[str, str] | None = None,
+) -> GenericResourceExpanded:
+    """A resource as the SDK deserializes one row of the ARM resource list."""
+    body: dict[str, Any] = {
+        "id": resource_id,
+        "name": resource_id.rsplit("/", 1)[-1],
+        "type": "/".join(resource_id.split("/providers/", 1)[-1].split("/")[:2]),
+        "tags": tags,
+        "managedBy": managed_by,
+    }
+    if created is not None:
+        body["createdTime"] = created.isoformat()
+    return GenericResourceExpanded(body)
+
+
+def graph_page(rows: list[dict], skip_token: str | None = None) -> QueryResponse:
+    """A Resource Graph response in objectArray format."""
+    body: dict[str, Any] = {
+        "totalRecords": len(rows),
+        "count": len(rows),
+        "resultTruncated": "false",
+        "data": rows,
+    }
+    if skip_token is not None:
+        body["$skipToken"] = skip_token
+    return QueryResponse.deserialize(body)
+
+
+class FakeSubscriptionClient:
+    def __init__(self, subs: list[SdkSubscription], error: Exception | None = None) -> None:
+        self.subscriptions = self
+        self._subs = subs
+        self._error = error
+
+    def list(self) -> Iterator[SdkSubscription]:
+        return lazy(self._subs, self._error)
+
+
+class FakeResourceClient:
+    def __init__(
+        self, rows: list[GenericResourceExpanded], error: Exception | None = None, after: int = 0
+    ) -> None:
+        self.resources = self
+        self._rows = rows
+        self._error = error
+        self._after = after
+        self.expands: list[str | None] = []
+
+    def list(self, *, expand: str | None = None) -> Iterator[GenericResourceExpanded]:
+        self.expands.append(expand)
+        return lazy(self._rows, self._error, self._after)
+
+
+class FakeGraph:
+    """Answers each query text from its list of responses in order; an Exception is raised."""
+
+    def __init__(self, responses: dict[str, list[QueryResponse | Exception]]) -> None:
+        self._responses = {query: list(pages) for query, pages in responses.items()}
+        self.requests: list[QueryRequest] = []
+
+    def resources(self, query: QueryRequest) -> QueryResponse:
+        self.requests.append(query)
+        response = self._responses[query.query].pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+class FakeClients:
+    """The four Clients factories over fakes."""
+
+    def __init__(
+        self,
+        subscriptions: FakeSubscriptionClient,
+        graph: FakeGraph,
+        resources: dict[str, FakeResourceClient],
+        monitors: dict[str, Any] | None = None,
+    ) -> None:
+        self._subscriptions = subscriptions
+        self._graph = graph
+        self._resources = resources
+        self._monitors = monitors or {}
+
+    def subscriptions(self) -> FakeSubscriptionClient:
+        return self._subscriptions
+
+    def graph(self) -> FakeGraph:
+        return self._graph
+
+    def resources(self, subscription_id: str) -> FakeResourceClient:
+        return self._resources[subscription_id]
+
+    def monitor(self, subscription_id: str) -> Any:
+        return self._monitors[subscription_id]

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from dashboard.model import Resource
 
 SUB = "00000000-0000-0000-0000-000000000001"
+SUB2 = "00000000-0000-0000-0000-000000000002"
 T0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
