@@ -268,6 +268,27 @@ class FakeMonitor:
         self.activity_logs = FakeActivityLogs(events, error, after)
 
 
+class _Download:
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+
+    def readall(self) -> bytes:
+        return self._data
+
+
+class FakeBlob:
+    """A BlobClient whose download_blob raises `error` (the real SDK sends its GET there)."""
+
+    def __init__(self, data: bytes | None = None, error: Exception | None = None) -> None:
+        self._data = data
+        self._error = error
+
+    def download_blob(self) -> _Download:
+        if self._error is not None:
+            raise self._error
+        return _Download(self._data or b"")
+
+
 class FakeRoleAssignments:
     """An AuthorizationManagementClient whose role assignment list records its filter."""
 
@@ -293,12 +314,14 @@ class FakeClients:
         monitors: dict[str, Any] | None = None,
         *,
         authorizations: dict[str, FakeRoleAssignments] | None = None,
+        blobs: dict[tuple[str, str], FakeBlob] | None = None,
     ) -> None:
         self._subscriptions = subscriptions
         self._graph = graph
         self._resources = resources or {}
         self._monitors = monitors or {}
         self._authorizations = authorizations or {}
+        self._blobs = blobs or {}
 
     def subscriptions(self) -> FakeSubscriptionClient:
         return self._subscriptions
@@ -314,3 +337,6 @@ class FakeClients:
 
     def authorization(self, subscription_id: str) -> FakeRoleAssignments:
         return self._authorizations[subscription_id]
+
+    def blob(self, account: str, container: str, name: str) -> FakeBlob:
+        return self._blobs[(container, name)]

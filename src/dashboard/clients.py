@@ -53,6 +53,8 @@ GRAPH_QUERY_PATH = "/providers/microsoft.resourcegraph/resources"
 STORAGE_SCOPE = "https://storage.azure.com/.default"
 PAGE_CONTAINER = "site"
 PAGE_BLOB = "index.html"
+ROSTER_CONTAINER = "config"
+ROSTER_BLOB = "roster.csv"
 # Storage account names are lowercase letters and numbers, 3 to 24 characters, source:
 # https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules
 ACCOUNT_RE = re.compile(r"[a-z0-9]{3,24}", re.ASCII)
