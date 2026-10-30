@@ -1,6 +1,8 @@
 """Static checks that src/ stays read-only toward Azure.
 
 The transport refuses writes at run time; these checks keep the code from asking for one.
+A Functions output binding writes through the host instead, so tests/test_function_app.py pins
+each function's exact binding list.
 """
 
 import ast
@@ -110,7 +112,10 @@ def network_imports(source: str) -> list[str]:
 
 
 def _src_files() -> list[Path]:
-    return sorted(SRC.rglob("*.py"))
+    """Every module of the package, and the Functions entry point."""
+    entry = REPO / "function_app.py"
+    assert entry.exists(), "function_app.py is gone: point these checks at the entry point"
+    return sorted(SRC.rglob("*.py")) + [entry]
 
 
 def _key(path: Path) -> str:
