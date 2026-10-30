@@ -1,0 +1,4 @@
+# Copy to dashboard.toml (gitignored). Thresholds and the dashboard's resource group live in
+# the committed settings.json. This file holds only the local roster path.
+
+roster_path = "roster.csv"  # optional, gitignored

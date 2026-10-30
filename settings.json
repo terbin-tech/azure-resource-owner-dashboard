@@ -1,0 +1,5 @@
+{
+  "max_age_days": 4,
+  "lookback_days": 90,
+  "dashboard_resource_group": "resource-owner-dashboard"
+}
