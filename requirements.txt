@@ -10,9 +10,9 @@ azure-common==1.1.28 \
 azure-core==1.41.0 \
     --hash=sha256:522b4011e8180b1a3dcd2024396a4e7fe9ac37fb8597db47163d230b5efe892d \
     --hash=sha256:f46ff5dfcd230f25cf1c19e8a34b8dc08a337b2503e268bb600a16c00db8ad5a
-azure-functions==2.3.0 \
-    --hash=sha256:9eb166cd83875dd88996c5f23a46f8edbbc78c0f9c41926bfdf960be54b6c889 \
-    --hash=sha256:32136bae3285680edd2b2d1786c37d381a9ba4c23332dcd590e354190dbe6c9a
+azure-functions==2.4.0 \
+    --hash=sha256:4b764002c787b860dbee0c8ec02f795bdd2ca0384f8b3860da8369403ee19b01 \
+    --hash=sha256:c1f69edce150af18bcbf4cd6eab224506335a7bfd225a5269a54df27c115aa12
 azure-identity==1.27.0 \
     --hash=sha256:92fd2a93c0d2f777dac6c04e5fd7d5734f6643582b983544ef66b4575844e46d \
     --hash=sha256:6a4c50e25e8e9a47b324a95ad024897e56cb3c6241e0094e93b126a2bf71edc5
